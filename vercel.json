@@ -4,11 +4,10 @@
   "outputDirectory": "dist",
   "functions": {
     "api/chat.js": {
-      "maxDuration": 30
+      "maxDuration": 10
     }
   },
   "rewrites": [
-    { "source": "/api/chat/history/:userId", "destination": "/api/chat" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
