@@ -3,21 +3,30 @@ import { GoogleGenAI } from '@google/genai';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// MongoDB connection (reuse across warm invocations)
+// MongoDB — optional, gracefully skipped if URI not set
 let isConnected = false;
-async function connectDB() {
-  if (isConnected) return;
-  await mongoose.connect(process.env.MONGODB_URI);
-  isConnected = true;
-}
+let Chat = null;
 
-const chatSchema = new mongoose.Schema({
-  userId:    { type: String, required: true },
-  message:   { type: String, required: true },
-  role:      { type: String, enum: ['user', 'model'], required: true },
-  timestamp: { type: Date, default: Date.now }
-});
-const Chat = mongoose.models.Chat || mongoose.model('Chat', chatSchema);
+async function connectDB() {
+  if (!process.env.MONGODB_URI) return false;
+  if (isConnected) return true;
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+    isConnected = true;
+
+    const chatSchema = new mongoose.Schema({
+      userId:    { type: String, required: true },
+      message:   { type: String, required: true },
+      role:      { type: String, enum: ['user', 'model'], required: true },
+      timestamp: { type: Date, default: Date.now }
+    });
+    Chat = mongoose.models.Chat || mongoose.model('Chat', chatSchema);
+    return true;
+  } catch (err) {
+    console.error('MongoDB connection failed (non-fatal):', err.message);
+    return false;
+  }
+}
 
 const SYSTEM_PROMPT = `
 You are ElectBot 🗳️ — India's friendliest and most knowledgeable 
@@ -43,11 +52,15 @@ YOUR KNOWLEDGE AREAS:
 
 YOUR RULES:
 1. Always stay 100% politically neutral
-2. Use simple, friendly language
-3. Format responses with bullet points or numbered steps
-4. If asked anything outside elections, say: "I'm specialized in Indian election education! Let's explore how democracy works 🗳️"
-5. Never make up facts
-6. Celebrate civic participation
+2. Use simple, friendly language — imagine explaining to a 17-year-old first-time voter
+3. Format responses clearly with bullet points or numbered steps
+4. When relevant, suggest what the user might want to ask next
+5. If asked anything outside elections, say: "I'm specialized in Indian election education! Let's explore how democracy works 🗳️"
+6. Never make up facts — if unsure, say so honestly
+7. Celebrate civic participation — encourage voting positively
+
+GREETING (use on first message only):
+"Jai Hind! 🇮🇳 I'm ElectBot, your personal guide to Indian elections. Whether you're a first-time voter or just curious about democracy, I'm here to help! What would you like to know about India's election process?"
 `;
 
 export default async function handler(req, res) {
@@ -57,21 +70,46 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  await connectDB();
+  const dbConnected = await connectDB();
 
-  // POST /api/chat — send message
+  // GET — fetch chat history
+  if (req.method === 'GET') {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    if (!dbConnected || !Chat) return res.json([]); // no DB → return empty history
+
+    try {
+      const history = await Chat.find({ userId }).sort({ timestamp: 1 });
+      return res.json(history.map(item => ({
+        role: item.role,
+        text: item.message,
+        timestamp: item.timestamp
+      })));
+    } catch (err) {
+      console.error('History fetch error:', err.message);
+      return res.json([]);
+    }
+  }
+
+  // POST — send message to Gemini
   if (req.method === 'POST') {
     try {
       const { message, userId = 'anonymous', history = [] } = req.body;
       if (!message) return res.status(400).json({ error: 'Message is required' });
 
-      await Chat.create({ userId, message, role: 'user' });
+      // Save user message (if DB available)
+      if (dbConnected && Chat) {
+        await Chat.create({ userId, message, role: 'user' }).catch(() => {});
+      }
 
+      // Format conversation history for Gemini
       const formattedHistory = history.map(msg => ({
         role: msg.role === 'model' ? 'model' : 'user',
         parts: [{ text: msg.text }]
       }));
 
+      // Call Gemini
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: [
@@ -85,32 +123,17 @@ export default async function handler(req, res) {
       });
 
       const reply = response.text;
-      await Chat.create({ userId, message: reply, role: 'model' });
+
+      // Save bot reply (if DB available)
+      if (dbConnected && Chat) {
+        await Chat.create({ userId, message: reply, role: 'model' }).catch(() => {});
+      }
+
       return res.json({ reply });
 
     } catch (error) {
       console.error('Chat error:', error);
-      return res.status(500).json({ error: 'Failed to process chat message' });
-    }
-  }
-
-  // GET /api/chat?userId=xxx — fetch history
-  if (req.method === 'GET') {
-    try {
-      const { userId } = req.query;
-      if (!userId) return res.status(400).json({ error: 'userId is required' });
-
-      const history = await Chat.find({ userId }).sort({ timestamp: 1 });
-      const formatted = history.map(item => ({
-        role: item.role,
-        text: item.message,
-        timestamp: item.timestamp
-      }));
-      return res.json(formatted);
-
-    } catch (error) {
-      console.error('History error:', error);
-      return res.status(500).json({ error: 'Failed to fetch history' });
+      return res.status(500).json({ error: error.message || 'Failed to process chat' });
     }
   }
 
