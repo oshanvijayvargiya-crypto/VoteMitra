@@ -2,8 +2,13 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/chat/history/:userId", "destination": "/api/chat" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
