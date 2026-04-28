@@ -144,6 +144,8 @@ const SUGGESTION_CHIPS = [
   "What is cVIGIL app? 🗳️"
 ];
 
+const API_BASE = import.meta.env.DEV ? 'http://localhost:5000' : '';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("home");
   const [chatOpen, setChatOpen] = useState(false);
@@ -162,23 +164,23 @@ export default function App() {
   useEffect(() => {
     if (chatOpen && messages.length === 0) {
       // Fetch history when chat opens
-      fetch(`http://localhost:5000/api/chat/history/${userId}`)
+      fetch(`${API_BASE}/api/chat?userId=${userId}`)
         .then(res => res.json())
         .then(history => {
             if (history && history.length > 0) {
                 setMessages(history);
             } else {
                 setMessages([
-                    { role: "user", text: "Hello ElectBot!" },
-                    { role: "model", text: "Jai Hind! 🇮🇳 I'm ElectBot, your personal guide to Indian elections. Whether you're a first-time voter or just curious about democracy, I'm here to help! What would you like to know about India's election process?" }
+                    { role: "user", text: "Hello VoteMitra!" },
+                    { role: "model", text: "Jai Hind! 🇮🇳 I'm VoteMitra, your personal guide to Indian elections. Whether you're a first-time voter or just curious about democracy, I'm here to help! What would you like to know about India's election process?" }
                 ]);
             }
         })
         .catch(err => {
             console.error("Failed to load history:", err);
             setMessages([
-              { role: "user", text: "Hello ElectBot!" },
-              { role: "model", text: "Jai Hind! 🇮🇳 I'm ElectBot, your personal guide to Indian elections. Whether you're a first-time voter or just curious about democracy, I'm here to help! What would you like to know about India's election process?" }
+              { role: "user", text: "Hello VoteMitra!" },
+              { role: "model", text: "Jai Hind! 🇮🇳 I'm VoteMitra, your personal guide to Indian elections. Whether you're a first-time voter or just curious about democracy, I'm here to help! What would you like to know about India's election process?" }
             ]);
         });
     }
@@ -198,7 +200,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const response = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -657,8 +659,8 @@ export default function App() {
         <div className="max-w-6xl mx-auto flex justify-between items-center gap-4">
           {/* Logo */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xl playfair tracking-tight font-bold" style={{color: 'var(--orange-core)', textShadow: '0 0 20px rgba(22,163,74,0.5)'}}>
-              VoteIQ 🗳️
+            <span className="text-xl playfair tracking-tight font-bold" style={{color: 'var(--orange-core)', textShadow: '0 0 20px rgba(60, 150, 21, 0.56)'}}>
+              VoteMitra 
             </span>
           </div>
 
@@ -729,7 +731,7 @@ export default function App() {
                   onClick={() => setChatOpen(true)}
                   className="btn-primary"
                 >
-                  Ask ElectBot ➜
+                  Ask VoteMitra ➜
                 </button>
                 <button 
                   onClick={() => setActiveTab("timeline")}
@@ -958,7 +960,7 @@ export default function App() {
             <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl bg-[rgba(22,163,74,0.1)] border border-[rgba(22,163,74,0.2)]">🗳️</div>
                   <div>
-                    <h3 className="font-bold text-[var(--text-primary)] playfair text-lg">ElectBot</h3>
+                    <h3 className="font-bold text-[var(--text-primary)] playfair text-lg">VoteMitra</h3>
                     <div className="text-xs text-[#4ade80] flex items-center gap-1.5">
                       <div className="w-2 h-2 bg-[#4ade80] rounded-full animate-pulse shadow-[0_0_8px_#4ade80]"></div> Online
                     </div>
@@ -1066,7 +1068,7 @@ export default function App() {
               onClick={() => askBotAbout(selectedStep.title)}
               className="w-full btn-primary flex items-center justify-center gap-2"
             >
-              Ask ElectBot about this <Send size={16} />
+              Ask VoteMitra about this <Send size={16} />
             </button>
           </div>
         </div>
